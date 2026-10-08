@@ -1,0 +1,192 @@
+name: ${COMPOSE_PROJECT_NAME:-fundscope}
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    stop_grace_period: 60s
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fund_dashboard}
+      POSTGRES_USER: ${POSTGRES_USER:-fund_dashboard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-REPLACE_WITH_RANDOM_DATABASE_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    mem_limit: 512m
+    logging: *default-logging
+
+  api:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    image: fundscope-api:${APP_IMAGE_TAG:-local}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    working_dir: /app/backend
+    environment:
+      APP_ENV: production
+      APP_HOST: 0.0.0.0
+      APP_PORT: ${APP_PORT:-8000}
+      APP_SERVICE_NAME: ${APP_SERVICE_NAME:-fundscope-api}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://fund_dashboard:REPLACE_WITH_URL_ENCODED_DB_PASSWORD@db:5432/fund_dashboard}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-REPLACE_WITH_RANDOM_DATABASE_PASSWORD}
+      UPLOAD_TEMP_DIR: ${UPLOAD_TEMP_DIR:-/var/lib/fundscope/tmp/uploads}
+      SOURCE_STORAGE_DIR: ${SOURCE_STORAGE_DIR:-/var/lib/fundscope/source-files}
+      DATABASE_BACKUP_DIR: ${DATABASE_BACKUP_DIR:-/var/lib/fundscope/backups}
+      SOURCE_RETENTION_DAYS: ${SOURCE_RETENTION_DAYS:-365}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-20971520}
+      MAIL_IMAP_HOST: ${MAIL_IMAP_HOST:-imap.qq.com}
+      MAIL_IMAP_PORT: ${MAIL_IMAP_PORT:-993}
+      MAIL_IMAP_USERNAME: ${MAIL_IMAP_USERNAME:-}
+      MAIL_IMAP_PASSWORD: ${MAIL_IMAP_PASSWORD:-}
+      MAIL_IMAP_PASSWORD_FILE: /run/secrets/imap_password
+      MAIL_IMAP_USE_SSL: ${MAIL_IMAP_USE_SSL:-true}
+      MAIL_IMAP_MAILBOX: ${MAIL_IMAP_MAILBOX:-INBOX}
+    command:
+      ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    volumes:
+      - source_files:/var/lib/fundscope/source-files
+      - upload_temp:/var/lib/fundscope/tmp/uploads
+      - database_backups:/var/lib/fundscope/backups
+      - type: bind
+        source: ${MAIL_IMAP_SECRET_DIR:-/etc/fundscope}
+        target: /run/secrets
+    expose:
+      - "8000"
+    networks:
+      - backend
+      - egress
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=5)"]
+      interval: 20s
+      timeout: 10s
+      retries: 8
+      start_period: 60s
+    mem_limit: 1024m
+    logging: *default-logging
+
+  worker:
+    image: fundscope-api:${APP_IMAGE_TAG:-local}
+    restart: unless-stopped
+    stop_grace_period: 60s
+    working_dir: /app/backend
+    environment:
+      APP_ENV: production
+      APP_HOST: 0.0.0.0
+      APP_PORT: ${APP_PORT:-8000}
+      APP_SERVICE_NAME: ${APP_SERVICE_NAME:-fundscope-api}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://fund_dashboard:REPLACE_WITH_URL_ENCODED_DB_PASSWORD@db:5432/fund_dashboard}
+      UPLOAD_TEMP_DIR: ${UPLOAD_TEMP_DIR:-/var/lib/fundscope/tmp/uploads}
+      SOURCE_STORAGE_DIR: ${SOURCE_STORAGE_DIR:-/var/lib/fundscope/source-files}
+      DATABASE_BACKUP_DIR: ${DATABASE_BACKUP_DIR:-/var/lib/fundscope/backups}
+      SOURCE_RETENTION_DAYS: ${SOURCE_RETENTION_DAYS:-365}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-20971520}
+      MAIL_IMAP_HOST: ${MAIL_IMAP_HOST:-imap.qq.com}
+      MAIL_IMAP_PORT: ${MAIL_IMAP_PORT:-993}
+      MAIL_IMAP_USERNAME: ${MAIL_IMAP_USERNAME:-}
+      MAIL_IMAP_PASSWORD: ${MAIL_IMAP_PASSWORD:-}
+      MAIL_IMAP_PASSWORD_FILE: /run/secrets/imap_password
+      MAIL_IMAP_USE_SSL: ${MAIL_IMAP_USE_SSL:-true}
+      MAIL_IMAP_MAILBOX: ${MAIL_IMAP_MAILBOX:-INBOX}
+    command:
+      ["python", "-m", "app.worker", "--idle-sleep", "${WORKER_IDLE_SLEEP_SECONDS:-5}"]
+    volumes:
+      - source_files:/var/lib/fundscope/source-files
+      - upload_temp:/var/lib/fundscope/tmp/uploads
+      - database_backups:/var/lib/fundscope/backups
+      - type: bind
+        source: ${MAIL_IMAP_SECRET_DIR:-/etc/fundscope}
+        target: /run/secrets
+        read_only: true
+    networks:
+      - backend
+      - egress
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ["CMD-SHELL", "python -c \"import sys; sys.exit(0 if 'app.worker' in open('/proc/1/cmdline', 'rb').read().decode(errors='ignore') else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    mem_limit: 768m
+    logging: *default-logging
+
+  caddy:
+    build:
+      context: ..
+      dockerfile: deploy/Caddy.Dockerfile
+    image: fundscope-web:${APP_IMAGE_TAG:-local}
+    restart: unless-stopped
+    stop_grace_period: 15s
+    environment:
+      DASHBOARD_DOMAIN: ${DASHBOARD_DOMAIN:-dashboard.example.com}
+      ACME_EMAIL: ${ACME_EMAIL:-ops@example.com}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Desktop auto-update artifacts (latest.json + signed installers),
+      # managed outside the image so releases only need an scp.
+      - ${UPDATES_DIR:-/opt/fundscope-updates}:/srv/updates:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+      - backend
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    mem_limit: 128m
+    logging: *default-logging
+
+volumes:
+  postgres_data:
+    name: ${COMPOSE_PROJECT_NAME:-fundscope}-postgres-data
+  source_files:
+    name: ${COMPOSE_PROJECT_NAME:-fundscope}-source-files
+  upload_temp:
+    name: ${COMPOSE_PROJECT_NAME:-fundscope}-upload-temp
+  database_backups:
+    name: ${COMPOSE_PROJECT_NAME:-fundscope}-database-backups
+  caddy_data:
+    name: ${COMPOSE_PROJECT_NAME:-fundscope}-caddy-data
+  caddy_config:
+    name: ${COMPOSE_PROJECT_NAME:-fundscope}-caddy-config
+
+networks:
+  edge:
+    name: ${COMPOSE_PROJECT_NAME:-fundscope}-edge
+  egress:
+    name: ${COMPOSE_PROJECT_NAME:-fundscope}-egress
+  backend:
+    name: ${COMPOSE_PROJECT_NAME:-fundscope}-backend
+    internal: true

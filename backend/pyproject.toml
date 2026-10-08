@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fund-dashboard-backend"
+version = "0.1.0"
+description = "Private fund valuation dashboard backend"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.13,<2.0",
+    "argon2-cffi>=23.1,<26.0",
+    "fastapi>=0.115,<1.0",
+    "openpyxl>=3.1,<4.0",
+    "psycopg[binary]>=3.2,<4.0",
+    "python-multipart>=0.0.18,<1.0",
+    "sqlalchemy>=2.0,<3.0",
+    "xlrd>=2.0,<3.0",
+    "uvicorn[standard]>=0.30,<1.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "httpx>=0.27,<1.0",
+    "pytest>=8.0,<10.0",
+    # ruff and ty are pinned to exact versions on purpose. The CI gate runs
+    # `ruff format --check` and `ty check`, and both tools can change what they
+    # accept between releases. With a loose range such as `ruff>=0.9,<1.0` the
+    # gate silently installs whatever is newest, so a green build can turn red
+    # with no code change. Bump these deliberately, together with the fixes.
+    "ruff==0.16.8",
+    "ty==0.0.82",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "security: authentication and authorization security checks",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*", "tools*"]
+exclude = ["tools.valuation_inventory.tests*"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests legitimately use date.today() so they mirror the production
+# route's "today" anchor (e.g. dashboard.py / exports.py). Suppress
+# the naive-datetime warning for that directory only.
+"tests/**" = ["DTZ011"]

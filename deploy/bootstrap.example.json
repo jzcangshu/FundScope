@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "preflight": {
+    "storage_root": "/var/lib/fundscope/source-files",
+    "migration_manifest": "/run/migration/migration-manifest.json"
+  },
+  "products": [
+    {
+      "standard_name": "示例产品一号",
+      "product_code": "EXAMPLE-001",
+      "establishment_date": "2024-01-01",
+      "strategy": "示例策略",
+      "manager": "示例管理人",
+      "aliases": [
+        {
+          "alias": "示例产品一号估值表",
+          "source_location": "primary",
+          "match_priority": 10
+        }
+      ],
+      "share_classes": [
+        {
+          "share_code": "A",
+          "share_name": "A类"
+        }
+      ]
+    }
+  ],
+  "subject_mappings": [
+    {
+      "subject_code_or_prefix": "1101",
+      "standard_category": "银行存款",
+      "is_leaf": true,
+      "include_in_holdings": false,
+      "rule_version": "1",
+      "status": "active"
+    }
+  ],
+  "risk_rules": [
+    {
+      "rule_code": "daily_return_limit",
+      "rule_type": "daily_return",
+      "scope": "all",
+      "threshold": "-0.05",
+      "severity": "warning",
+      "version": "1",
+      "enabled": true
+    }
+  ],
+  "system_settings": {
+    "source_retention_days": 365,
+    "task_concurrency": 1,
+    "data_lateness_days": 1,
+    "mail_sync_interval_minutes": 5,
+    "backup_retention_days": 30,
+    "timezone": "Asia/Shanghai"
+  }
+}

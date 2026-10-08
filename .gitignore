@@ -1,0 +1,92 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Frontend and desktop build output
+node_modules/
+dist/
+build/
+.turbo/
+target/
+
+# Local generated artifacts and test data
+artifacts/
+tmp/
+data/
+uploads/
+backups/
+tmp-audit-*.db
+tmp-audit-migration/
+tmp-batch-*.db
+
+# Agent review/audit docs are process artifacts, not part of the repo
+docs/reviews/
+
+# Ad-hoc scratch scripts and their outputs (unrelated to the dashboard repo)
+ag_filter.py
+inspect_ag.py
+inspect_small.py
+final_report.py
+extracted_full.txt
+ai_ag.json
+ai_ag_listing.txt
+six_tracks_final.json
+six_tracks_final.md
+local-auto-publish.xlsx
+
+# Local-only credentials, cookies, and build caches that must never be committed
+.local-cookies.txt
+.local-secrets/
+.vite/
+
+# Tauri: per-machine cargo proxy workaround and build-time generated schemas.
+# .cargo/config.toml is a local network workaround (this host has a Windows
+# system proxy that Cargo's vendored libcurl cannot tunnel through); regenerate
+# schemas are emitted by tauri-build on every compile, so neither is committed.
+frontend/src-tauri/.cargo/
+frontend/src-tauri/gen/
+
+# Playwright e2e test output (traces, screenshots, HTML report).
+frontend/test-results/
+frontend/playwright-report/
+
+# Project uses npm (see package-lock.json); pnpm files were left behind from a
+# one-off pnpm experiment and must not be committed.
+frontend/pnpm-lock.yaml
+frontend/pnpm-workspace.yaml
+
+# Agent workspace data (project memory, local task state) — never part of the app.
+.workbuddy-ai/
+
+# IDE and OS files
+.idea/
+.vscode/
+.zcode/
+*.swp
+Thumbs.db
+Desktop.ini
+docs/production-deployment.md
+
+# Throwaway probes used while checking CI: the token file holds a live credential
+# and must never reach a commit, even in a private repository.
+.ci-token
+.ci-run*.json
+
+# ZCode local agent ignore config (local tooling, not part of the app)
+.zcodeignore

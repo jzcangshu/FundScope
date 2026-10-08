@@ -1,0 +1,27 @@
+[package]
+name = "fund-dashboard"
+version = "0.2.10"
+description = "FundScope 基金估值运营看板桌面客户端"
+authors = ["FundScope Contributors"]
+edition = "2021"
+
+[lib]
+name = "fund_dashboard_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde_json = "1"
+tauri-plugin-dialog = "2"
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true
+opt-level = "s"

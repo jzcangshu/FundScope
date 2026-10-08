@@ -1,0 +1,26 @@
+.git
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.ty_cache
+artifacts
+data
+tmp
+uploads
+backups
+frontend/node_modules
+frontend/dist
+frontend/build
+# The API migration adapter imports tools.valuation_inventory at runtime.
+# Keep the package in the build context; its tests remain excluded below.
+tools/valuation_inventory/tests
+docs
+backend/tests
+deploy
+*.xls
+*.xlsx
+*.env
+!.env.example

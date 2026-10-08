@@ -1,0 +1,1 @@
+"""Mail ingestion tests."""

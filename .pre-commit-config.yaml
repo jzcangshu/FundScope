@@ -1,0 +1,53 @@
+# Local gate mirroring .github/workflows/quality.yml (the "Quality Gate" job).
+#
+# Why this exists: the repository is private, so GitHub branch protection and
+# required status checks are unavailable (the API returns 403 "Upgrade to GitHub
+# Pro"), and CI is not a pre-commit hook. Without a local gate an unformatted
+# commit lands on main, the backend job turns red, and every later step of that
+# job (type check + both test suites) is skipped. That is exactly how main stayed
+# red for 45 consecutive runs between 2026-09-12 and 2026-09-21.
+#
+# One-time setup:
+#   .venv/Scripts/python.exe -m pip install pre-commit
+#   .venv/Scripts/pre-commit install
+#
+# Hook revisions are pinned to the same versions as
+# backend/pyproject.toml [project.optional-dependencies].test on purpose.
+# Bump both together.
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.8
+    hooks:
+      # Mirrors `ruff check backend tools/valuation_inventory`.
+      - id: ruff-check
+        files: ^(backend|tools/valuation_inventory)/
+      # Mirrors `ruff format --check backend tools/valuation_inventory`.
+      - id: ruff-format
+        files: ^(backend|tools/valuation_inventory)/
+
+  - repo: local
+    hooks:
+      # Mirrors `ty check backend/app`.
+      #
+      # Two deliberate choices here:
+      #  * Not the published astral-sh/ty-pre-commit hook: that one runs `uv check`
+      #    over the whole project with pass_filenames disabled, and the whole
+      #    project currently reports 332 diagnostics, so it would fail on every
+      #    commit. The CI gate deliberately scopes to backend/app, which is clean.
+      #  * `language: system`, not `language: python`. ty must resolve the
+      #    project's own imports (sqlalchemy, fastapi, ...); an isolated
+      #    pre-commit environment only has ty itself and reports 156 spurious
+      #    `unresolved-import` diagnostics. Running through the project
+      #    interpreter is what CI effectively does after
+      #    `pip install -e "backend[test]"`.
+      #
+      # Consequence: `python` must be the project virtualenv interpreter, i.e.
+      # activate the venv before committing (same requirement as every command in
+      # README.md). Otherwise the hook reports `No module named ty`.
+      - id: ty-check
+        name: ty check backend/app
+        entry: python -m ty check backend/app
+        language: system
+        pass_filenames: false
+        files: ^backend/app/

@@ -1,0 +1,48 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$DASHBOARD_DOMAIN} {
+	encode gzip
+
+	log {
+		output stdout
+		format json
+	}
+
+	handle /api/* {
+		request_body /api/v1/imports/*/files {
+			max_size 21MiB
+		}
+		reverse_proxy api:8000 {
+			transport http {
+				dial_timeout 5s
+				read_timeout 60s
+				write_timeout 60s
+				response_header_timeout 10s
+			}
+		}
+	}
+
+	handle /health/* {
+		reverse_proxy api:8000 {
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 5s
+			}
+		}
+	}
+
+	handle /assets/* {
+		root * /srv
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		header Cache-Control "no-cache"
+		file_server
+	}
+}

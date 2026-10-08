@@ -1,0 +1,19 @@
+services:
+  api:
+    image: python:3.12-slim
+    working_dir: /workspace/backend
+    volumes:
+      - ..:/workspace
+    environment:
+      APP_ENV: development
+      APP_HOST: 0.0.0.0
+      APP_PORT: "8000"
+      DATABASE_URL: sqlite:////workspace/backend/data/dev.db
+      PYTHONPATH: /workspace:/workspace/backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    command: >-
+      sh -c "mkdir -p /workspace/backend/data/tmp/uploads /workspace/backend/data/source-files &&
+      python -m pip install --no-cache-dir -e '.[test]' &&
+      python -m alembic upgrade head &&
+      python -m uvicorn app.main:app --host $${APP_HOST} --port $${APP_PORT} --reload"
