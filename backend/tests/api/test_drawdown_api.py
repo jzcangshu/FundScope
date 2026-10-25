@@ -121,6 +121,65 @@ def test_fund_drawdowns_endpoint(admin_client, app_and_engine) -> None:
     assert Decimal(row["max_drawdown"]) == Decimal(0)
 
 
+def test_ytd_partial_history_agrees_with_nav_export(
+    admin_client, app_and_engine
+) -> None:
+    _, engine = app_and_engine
+    with Session(engine) as session:
+        fund = make_fund(session)
+
+    payload = admin_client.get("/api/v1/dashboard/fund-drawdowns?range=ytd").json()
+    row = next(item for item in payload["data"]["funds"] if item["fund_id"] == fund)
+    assert row["status"] == "incomplete"
+    assert row["target_start"] == "2026-01-01"
+    assert row["start"] == "2026-06-01"
+    assert "2026-06-01" in row["reason"]
+    assert "不代表完整区间" in row["reason"]
+    assert Decimal(row["max_drawdown"]) == Decimal("-0.25")
+
+    response = admin_client.get(
+        f"/api/v1/exports/funds/{fund}/nav-series?range=ytd&end=2026-09-01"
+    )
+    assert response.status_code == 200
+    assert response.headers["x-drawdown-status"] == "incomplete"
+    assert response.headers["x-drawdown-start"] == "2026-06-01"
+    rows = list(csv.reader(StringIO(response.text)))
+    index = rows[0].index("区间回撤")
+    assert [row[index] for row in rows[1:]] == [
+        "0.000000",
+        "0.000000",
+        "-0.250000",
+        "-0.083333",
+    ]
+
+
+def test_ytd_january_first_baseline_matches_export(
+    admin_client, app_and_engine
+) -> None:
+    _, engine = app_and_engine
+    with Session(engine) as session:
+        fund = make_fund(
+            session,
+            nav=[
+                (date(2025, 12, 31), "2.00"),
+                (date(2026, 1, 1), "1.20"),
+                (date(2026, 1, 6), "1.08"),
+            ],
+        )
+    row = admin_client.get("/api/v1/dashboard/fund-drawdowns?range=ytd").json()["data"][
+        "funds"
+    ][0]
+    assert row["status"] == "ok"
+    assert row["start"] == "2026-01-01"
+    assert Decimal(row["max_drawdown"]) == Decimal("-0.1")
+    response = admin_client.get(
+        f"/api/v1/exports/funds/{fund}/nav-series?range=ytd&end=2026-01-06"
+    )
+    rows = list(csv.reader(StringIO(response.text)))
+    assert [row[0] for row in rows[1:]] == ["2026-01-01", "2026-01-06"]
+    assert rows[-1][rows[0].index("区间回撤")] == "-0.100000"
+
+
 def test_fund_drawdowns_honour_a_pinned_valuation_day(
     admin_client, app_and_engine
 ) -> None:

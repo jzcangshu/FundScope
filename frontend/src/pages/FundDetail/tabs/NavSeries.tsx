@@ -119,7 +119,7 @@ export default function NavSeriesSection({ fundId, asOf, valuationDate, performa
   const drawdownNote = drawdownUnavailable
     ? drawdown.reason
     : drawdown.status === "incomplete"
-      ? "区间内存在缺失净值，回撤仅基于已观测数据"
+      ? drawdown.reason
       : drawdown.start && drawdown.end
         ? `${RANGE_LABEL[range]} · ${drawdown.start} 至 ${drawdown.end}`
         : RANGE_LABEL[range];

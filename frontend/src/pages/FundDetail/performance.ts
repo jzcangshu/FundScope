@@ -1,5 +1,6 @@
 import type { NavPoint, RangeDrawdownDetail } from "@/api/types";
 import type { RangeKey } from "@/utils/constants";
+import { cutoffForRange } from "@/utils/format";
 import { drawdownText, rangeDrawdown, type DrawdownStatus, type RangeDrawdown } from "@/utils/drawdown";
 
 export type PerformancePoint = Pick<NavPoint, "valuation_date" | "adjusted_nav">;
@@ -165,14 +166,14 @@ export function intervalDrawdown(
   };
 }
 
-/** Full drawdown series of the chart window: same points, same end date as the
- *  chart return, so the chart, the summary and the detail column agree. */
+/** Same window as the NAV chart and export. YTD without baseline history
+ *  shows the observed drawdown with an explicit incomplete-window warning. */
 export function chartRangeDrawdown(points: readonly PerformancePoint[], range: RangeKey): RangeDrawdown {
   if (!points.length) return rangeDrawdown([]);
   const ordered = [...points].sort((left, right) => left.valuation_date.localeCompare(right.valuation_date));
   const end = ordered[ordered.length - 1].valuation_date;
-  const targetStart = range === "all" ? ordered[0].valuation_date : returnCutoff(end, range);
-  return rangeDrawdown(drawdownSamples(ordered), targetStart ?? ordered[0].valuation_date, end);
+  const targetStart = cutoffForRange(end, range);
+  return rangeDrawdown(drawdownSamples(ordered), targetStart, end, { allowPartialStart: range === "ytd" });
 }
 
 /** Every column limits its own window and resets the running peak at its own start. */

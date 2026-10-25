@@ -232,6 +232,7 @@ def calculate_range_drawdown(
     *,
     start: date | None = None,
     end: date | None = None,
+    allow_partial_start: bool = False,
 ) -> RangeDrawdownResult:
     """Recompute the standard drawdown inside ``[start, end]``.
 
@@ -241,6 +242,9 @@ def calculate_range_drawdown(
     record yields an unavailable result instead of silently showing another
     day. Peaks reset at the baseline, so highs before the window and the
     residual peak of a wider query can never leak into the numbers.
+    With ``allow_partial_start``, absent baseline history uses the first
+    observed valuation and explicitly marks the window incomplete. An invalid
+    baseline is never skipped. Strict callers retain the default behavior.
     """
 
     dated = dated_records(records)
@@ -270,6 +274,7 @@ def calculate_range_drawdown(
                 end=end,
             )
 
+    partial_start = False
     if start is None:
         start_index = 0
     else:
@@ -288,12 +293,15 @@ def calculate_range_drawdown(
             None,
         )
         if start_index is None:
-            return _range_result(
-                status=STATUS_INSUFFICIENT,
-                reason="历史不足，缺少区间起点估值",
-                target_start=start,
-                end=dated[end_index][0],
-            )
+            if not allow_partial_start:
+                return _range_result(
+                    status=STATUS_INSUFFICIENT,
+                    reason="历史不足，缺少区间起点估值",
+                    target_start=start,
+                    end=dated[end_index][0],
+                )
+            start_index = 0
+            partial_start = True
 
     window = dated[start_index : end_index + 1]
     baseline_date = window[0][0]
@@ -339,10 +347,17 @@ def calculate_range_drawdown(
         points.append(RangeDrawdownPoint(valuation_day, value, peak, drawdown, worst))
 
     current = points[-1].drawdown if points else None
-    status = STATUS_OK if missing == 0 else STATUS_INCOMPLETE
+    reasons: list[str] = []
+    if partial_start:
+        reasons.append(
+            f"缺少区间起点估值，自 {baseline_date.isoformat()} 起计算已观测回撤，不代表完整区间"
+        )
+    if missing:
+        reasons.append(_MISSING_DATA_REASON)
+    status = STATUS_INCOMPLETE if reasons else STATUS_OK
     return _range_result(
         status=status,
-        reason=None if missing == 0 else _MISSING_DATA_REASON,
+        reason="；".join(reasons) or None,
         target_start=start,
         start=baseline_date,
         end=end_date,

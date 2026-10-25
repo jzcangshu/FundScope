@@ -478,7 +478,7 @@ function DrawdownCell({ detail, value, rangeLabel, loading }: {
     );
   }
   const parts = [`${detail.start ?? "—"} 至 ${detail.end ?? "—"}`, `按所选区间（${rangeLabel}）重算`];
-  if (detail.status === "incomplete") parts.push("区间数据不完整，仅基于已观测净值");
+  if (detail.status === "incomplete") parts.push(detail.reason ?? "区间数据不完整，仅基于已观测净值");
   if (detail.note) parts.push(detail.note);
   const tip = parts.join(" · ");
   return (

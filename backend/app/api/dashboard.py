@@ -1012,6 +1012,7 @@ def fund_range_drawdowns(
             _adjusted_nav_points(grouped.get(fund_id, [])),
             start=target_by_fund[fund_id],
             end=end_by_fund[fund_id],
+            allow_partial_start=range_key == "ytd",
         )
         payload = _range_drawdown_payload(result)
         payload["fund_id"] = fund_id

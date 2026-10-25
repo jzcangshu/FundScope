@@ -155,6 +155,52 @@ describe("range drawdown — windows and missing data", () => {
 });
 
 describe("range drawdown — page wiring", () => {
+  it("calculates observed YTD drawdown when history starts during the year", () => {
+    const points = [point("2026-06-01", "1.00"), point("2026-07-01", "1.20"), point("2026-08-01", "0.90"), point("2026-09-01", "1.10")];
+    const result = chartRangeDrawdown(points, "ytd");
+    expect(result.status).toBe("incomplete");
+    expect(result.targetStart).toBe("2026-01-01");
+    expect(result.start).toBe("2026-06-01");
+    expect(result.reason).toContain("2026-06-01");
+    expect(result.reason).toContain("不代表完整区间");
+    expect(result.maxDrawdown).toBeCloseTo(-0.25, 10);
+    expect(result.currentDrawdown).toBeCloseTo(-1 / 12, 10);
+    expect(result.points).toHaveLength(4);
+  });
+
+  it("uses the first available January valuation without inventing a holiday NAV", () => {
+    const result = chartRangeDrawdown([point("2026-01-05", "1.20"), point("2026-01-06", "1.08")], "ytd");
+    expect(result.start).toBe("2026-01-05");
+    expect(result.status).toBe("incomplete");
+    expect(result.maxDrawdown).toBeCloseTo(-0.1, 10);
+  });
+
+  it("uses the January 1st baseline consistently with chart slicing and exports", () => {
+    const points = [point("2025-12-31", "2.00"), point("2026-01-01", "1.20"), point("2026-01-06", "1.08")];
+    const result = chartRangeDrawdown(windowPoints(points, "2026-01-01"), "ytd");
+    expect(result.status).toBe("ok");
+    expect(result.start).toBe("2026-01-01");
+    expect(result.maxDrawdown).toBeCloseTo(-0.1, 10);
+  });
+
+  it("retains a prior-year baseline when it is available", () => {
+    const result = chartRangeDrawdown([point("2025-12-31", "1.20"), point("2026-01-05", "1.08")], "ytd");
+    expect(result.status).toBe("ok");
+    expect(result.start).toBe("2025-12-31");
+    expect(result.maxDrawdown).toBeCloseTo(-0.1, 10);
+  });
+
+  it("does not skip an invalid first YTD valuation or hide internal gaps", () => {
+    const invalid = chartRangeDrawdown([point("2026-01-05", null), point("2026-01-06", "1.08")], "ytd");
+    expect(invalid.status).toBe("invalid");
+    expect(invalid.maxDrawdown).toBeNull();
+    const gap = chartRangeDrawdown([point("2026-01-05", "1.20"), point("2026-01-06", null), point("2026-01-07", "1.08")], "ytd");
+    expect(gap.status).toBe("incomplete");
+    expect(gap.points[1].drawdown).toBeNull();
+    expect(gap.reason).toContain("不代表完整区间");
+    expect(gap.reason).toContain("缺失或无效");
+  });
+
   it("recomputes when the chart range changes", () => {
     // 2026-01-01 … 2026-03-02, with the deep fall in January only.
     const values: string[] = [];

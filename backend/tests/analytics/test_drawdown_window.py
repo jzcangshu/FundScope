@@ -219,6 +219,44 @@ def test_end_before_the_window_start_is_unavailable() -> None:
     assert result.reason is not None and "所选区间内没有估值记录" in result.reason
 
 
+@pytest.mark.parametrize("value", [None, "0", "-1", "NaN", "Infinity"])
+def test_partial_start_never_skips_an_invalid_first_value(value: str | None) -> None:
+    result = calculate_range_drawdown(
+        dated({"2026-01-05": value, "2026-01-06": "1.10"}),
+        start=date(2026, 1, 1),
+        allow_partial_start=True,
+    )
+    assert result.status == STATUS_INVALID
+    assert result.max_drawdown is None
+
+
+def test_partial_start_retains_gaps_and_reports_both_limitations() -> None:
+    result = calculate_range_drawdown(
+        dated({"2026-01-05": "1.20", "2026-01-06": None, "2026-01-07": "1.08"}),
+        start=date(2026, 1, 1),
+        allow_partial_start=True,
+    )
+    assert result.status == STATUS_INCOMPLETE
+    assert result.start == date(2026, 1, 5)
+    assert result.max_drawdown == Decimal("-0.1")
+    assert result.points[1].drawdown is None
+    assert result.missing_points == 1
+    assert result.reason is not None
+    assert "不代表完整区间" in result.reason
+    assert "缺失或无效" in result.reason
+
+
+def test_partial_start_still_requires_the_exact_end_valuation() -> None:
+    result = calculate_range_drawdown(
+        dated({"2026-01-05": "1.20", "2026-01-06": "1.08"}),
+        start=date(2026, 1, 1),
+        end=date(2026, 1, 7),
+        allow_partial_start=True,
+    )
+    assert result.status == STATUS_INSUFFICIENT
+    assert result.current_drawdown is None
+
+
 def test_peak_and_trough_dates_explain_the_extreme() -> None:
     result = calculate_range_drawdown(points(["1.00", "1.20", "0.90", "1.10"]))
 

@@ -106,6 +106,7 @@ export function rangeDrawdown(
   samples: readonly DrawdownSample[],
   targetStart: string | null = null,
   end: string | null = null,
+  options: { allowPartialStart?: boolean } = {},
 ): RangeDrawdown {
   if (!samples.length) {
     return unavailable("区间内没有可用的净值记录", targetStart, end);
@@ -118,9 +119,11 @@ export function rangeDrawdown(
   if (targetStart && end_date < targetStart) {
     return unavailable(`该区间内没有估值记录（最新估值日 ${end_date}）`, targetStart, end_date);
   }
-  const first = baselineIndex(samples, targetStart, last);
+  let first = baselineIndex(samples, targetStart, last);
+  const partialStart = first < 0 && options.allowPartialStart === true;
   if (first < 0) {
-    return unavailable("历史不足，缺少区间起点估值", targetStart, end_date);
+    if (!partialStart) return unavailable("历史不足，缺少区间起点估值", targetStart, end_date);
+    first = 0;
   }
   const window = samples.slice(first, last + 1);
   if (!usable(window[0].value)) {
@@ -165,10 +168,13 @@ export function rangeDrawdown(
     points.push({ valuation_date: sample.valuation_date, value: sample.value, peak, drawdown });
   }
 
-  const status: DrawdownStatus = missing === 0 ? "ok" : "incomplete";
+  const reasons: string[] = [];
+  if (partialStart) reasons.push(`缺少区间起点估值，自 ${window[0].valuation_date} 起计算已观测回撤，不代表完整区间`);
+  if (missing) reasons.push("区间内存在缺失或无效的净值，回撤仅基于已观测数据");
+  const status: DrawdownStatus = reasons.length ? "incomplete" : "ok";
   return {
     status,
-    reason: missing === 0 ? null : "区间内存在缺失或无效的净值，回撤仅基于已观测数据",
+    reason: reasons.join("；") || null,
     targetStart,
     start: window[0].valuation_date,
     end: end_date,

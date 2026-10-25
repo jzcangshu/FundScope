@@ -513,6 +513,7 @@ def export_nav_series(
                 ],
                 start=cutoff,
                 end=effective_end,
+                allow_partial_start=range_key == "ytd",
             )
             drawdown_status = result.status
             drawdown_start = result.start
